@@ -52,4 +52,3 @@ This project is licensed under the MIT License.
 
 ---
 
-Remember, you may need to adjust paths or commands based on your project structure and setup. The above is a generic template and may require modifications to fit your specific needs.
