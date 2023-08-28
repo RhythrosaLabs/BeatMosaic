@@ -3,6 +3,8 @@
 
 Transform visual patterns into rhythmic soundscapes. BeatMosaic is a unique audio generation tool that converts images into audio sample packs, allowing you to interpret visuals as sound.
 
+BeatMosaic converts image segments into unique audio samples, providing an interactive 4x4 grid. Users can click on grid sections to play corresponding sounds, apply effects based on image properties, and record/save audio samples. Perfect for audio-visual enthusiasts.
+
 
 ## Features
 
