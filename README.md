@@ -16,7 +16,7 @@ Transform visual patterns into rhythmic soundscapes. BeatMosaic is a unique audi
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/MosaicBeats.git
+git clone https://github.com/dizzysaturn/BeatMosaic.git
 ```
 
 2. Navigate to the project directory:
