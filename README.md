@@ -20,7 +20,7 @@ BeatMosaic converts image segments into unique audio samples, providing an inter
 2. Download the files.
 3. Install the required libraries:
 ```bash
-pip install openai
+pip install Pillow numpy sounddevice
 ```
 
 ## Usage
