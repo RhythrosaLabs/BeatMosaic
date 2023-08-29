@@ -25,7 +25,7 @@ pip install Pillow numpy sounddevice
 
 ## Usage
 
-1. Run the script.
+1. Run the Python script.
 2. Click on "Select Image" to choose an image.
 3. The image will be divided into a 4x4 grid. Click on each section to hear its unique sound.
 4. Experiment with different images to explore a myriad of sonic possibilities!
