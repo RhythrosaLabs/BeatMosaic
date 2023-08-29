@@ -16,28 +16,16 @@ BeatMosaic converts image segments into unique audio samples, providing an inter
 
 ## Installation
 
-1. Clone this repository:
-```bash
-git clone https://github.com/dizzysaturn/BeatMosaic.git
-```
-
-2. Navigate to the project directory:
-```bash
-cd MosaicBeats
-```
-
+1. Navigate to the project directory.
+2. Download the files.
 3. Install the required libraries:
 ```bash
-pip install -r requirements.txt
+pip install openai
 ```
 
 ## Usage
 
-1. Start the application:
-```bash
-python main.py
-```
-
+1. Run the script.
 2. Click on "Select Image" to choose an image.
 3. The image will be divided into a 4x4 grid. Click on each section to hear its unique sound.
 4. Experiment with different images to explore a myriad of sonic possibilities!
