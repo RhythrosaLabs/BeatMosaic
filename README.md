@@ -30,6 +30,11 @@ pip install Pillow numpy sounddevice
 3. The image will be divided into a 4x4 grid. Click on each section to hear its unique sound.
 4. Experiment with different images to explore a myriad of sonic possibilities!
 
+## Support
+If you found BeatMosaic helpful and would like to support its development, consider buying me a coffee:
+
+[![Support via PayPal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.me/noodlebake)
+
 ## Contributing
 
 Feel free to fork this project, make your changes, and submit a pull request. We're open to your insights and suggestions!
