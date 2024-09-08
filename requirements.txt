@@ -2,3 +2,4 @@ streamlit
 numpy
 pillow
 librosa
+soundfile
