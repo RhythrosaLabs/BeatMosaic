@@ -9,7 +9,7 @@ from scipy import signal
 
 # Constants
 SAMPLE_RATE = 44100
-DURATION = 2.0  # Increased duration for more complex sounds
+DURATION = 2.0
 
 def analyze_image_section(img_section):
     """Analyze the image section and extract relevant features."""
@@ -127,7 +127,6 @@ def audio_to_base64(audio):
     audio_b64 = base64.b64encode(buffer.getvalue()).decode()
     return audio_b64
 
-# Streamlit app
 def main():
     st.set_page_config(layout="wide", page_title="Image to Audio Sampler")
     
@@ -166,14 +165,55 @@ def main():
                 source.buffer = pads[key];
                 source.connect(audioContext.destination);
                 source.start();
+                console.log('Playing pad:', key);  // Debugging
+            }}
+            
+            // Transport variables
+            let isRecording = false;
+            let startTime;
+            let recordedNotes = [];
+            
+            function startRecording() {{
+                isRecording = true;
+                startTime = audioContext.currentTime;
+                recordedNotes = [];
+                console.log('Recording started');  // Debugging
+            }}
+            
+            function stopRecording() {{
+                isRecording = false;
+                console.log('Recording stopped');  // Debugging
+            }}
+            
+            function playRecording() {{
+                console.log('Playing recording', recordedNotes);  // Debugging
+                recordedNotes.forEach(note => {{
+                    setTimeout(() => playPad(note.pad), note.time * 1000);
+                }});
+            }}
+            
+            function recordNote(pad) {{
+                if (isRecording) {{
+                    const note = {{
+                        pad: pad,
+                        time: audioContext.currentTime - startTime
+                    }};
+                    recordedNotes.push(note);
+                    console.log('Recorded note:', note);  // Debugging
+                }}
             }}
             
             window.playPad = playPad;
+            window.startRecording = startRecording;
+            window.stopRecording = stopRecording;
+            window.playRecording = playRecording;
+            window.recordNote = recordNote;
             </script>
             """,
             unsafe_allow_html=True
         )
         
+        # MPC-style pad layout
         for i in range(4):
             cols = st.columns(4)
             for j in range(4):
@@ -186,9 +226,31 @@ def main():
                     st.markdown(f"""
                         <div style="width:100%;padding-bottom:100%;position:relative;overflow:hidden;border-radius:10px;margin-bottom:10px;">
                             <img src="data:image/png;base64,{img_str}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">
-                            <button onclick="playPad('{i},{j}')" style="position:absolute;top:0;left:0;width:100%;height:100%;background:transparent;border:none;cursor:pointer;"></button>
+                            <button onclick="playPad('{i},{j}'); recordNote('{i},{j}')" style="position:absolute;top:0;left:0;width:100%;height:100%;background:transparent;border:none;cursor:pointer;"></button>
                         </div>
                     """, unsafe_allow_html=True)
+        
+        # Transport controls
+        st.markdown("""
+            <div style="display:flex;justify-content:center;margin-top:20px;">
+                <button onclick="startRecording()" style="margin:0 10px;padding:10px 20px;">Record</button>
+                <button onclick="stopRecording()" style="margin:0 10px;padding:10px 20px;">Stop</button>
+                <button onclick="playRecording()" style="margin:0 10px;padding:10px 20px;">Play</button>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Debugging output
+        st.markdown("""
+            <div id="debug" style="margin-top:20px;padding:10px;background-color:#f0f0f0;border-radius:5px;">
+                <h3>Debug Output:</h3>
+                <pre id="debugText"></pre>
+            </div>
+            <script>
+                console.log = function(...args) {
+                    document.getElementById('debugText').innerHTML += args.join(' ') + '\\n';
+                }
+            </script>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
