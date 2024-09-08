@@ -1,43 +1,114 @@
 import streamlit as st
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageStat
 import io
 import base64
-import json
-from scipy.io import wavfile
 import librosa
 import soundfile as sf
+from scipy import signal
 
 # Constants
 SAMPLE_RATE = 44100
-DURATION = 0.5  # Increased duration for better sound
+DURATION = 2.0  # Increased duration for more complex sounds
 
-# Helper functions
-def generate_audio_sample(img_section, duration=DURATION):
-    # Convert image section to grayscale
-    gray = ImageOps.grayscale(img_section)
-    # Normalize pixel values
-    pixels = np.array(gray).flatten() / 255.0
+def analyze_image_section(img_section):
+    """Analyze the image section and extract relevant features."""
+    stat = ImageStat.Stat(img_section)
+    brightness = sum(stat.mean) / 3
+    contrast = sum(stat.stddev) / 3
     
-    # Generate a more complex waveform
-    t = np.linspace(0, duration, int(SAMPLE_RATE * duration), endpoint=False)
-    waveform = np.zeros_like(t)
+    # Convert to HSV for color analysis
+    hsv_img = img_section.convert('HSV')
+    hsv_stat = ImageStat.Stat(hsv_img)
     
-    # Use pixel values to modulate different frequency components
-    for i, px in enumerate(pixels[:10]):  # Use first 10 pixels for modulation
-        freq = 110 * (i + 1)  # Harmonics of 110 Hz
-        waveform += px * np.sin(2 * np.pi * freq * t)
+    return {
+        'brightness': brightness,
+        'contrast': contrast,
+        'hue': hsv_stat.mean[0],
+        'saturation': hsv_stat.mean[1],
+        'value': hsv_stat.mean[2]
+    }
+
+def generate_drum_sound(features):
+    """Generate a drum sound based on image features."""
+    t = np.linspace(0, DURATION, int(SAMPLE_RATE * DURATION), False)
+    
+    # Use brightness for the fundamental frequency
+    freq = np.interp(features['brightness'], [0, 255], [50, 200])
+    
+    # Use contrast for decay
+    decay = np.interp(features['contrast'], [0, 255], [5, 20])
+    
+    # Generate drum sound
+    drum = np.sin(2 * np.pi * freq * t) * np.exp(-decay * t)
+    
+    # Add some noise based on saturation
+    noise_amount = features['saturation'] / 255
+    noise = np.random.normal(0, 0.1, len(t)) * noise_amount
+    
+    return (drum + noise) * 0.5
+
+def generate_tonal_sound(features):
+    """Generate a tonal sound based on image features."""
+    t = np.linspace(0, DURATION, int(SAMPLE_RATE * DURATION), False)
+    
+    # Map hue to a musical scale (C major scale frequencies)
+    scale = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88]
+    note_index = int(features['hue'] / 255 * len(scale))
+    freq = scale[note_index]
+    
+    # Generate harmonics
+    harmonics = [1, 0.5, 0.3, 0.2, 0.1]
+    tone = np.zeros_like(t)
+    for i, amplitude in enumerate(harmonics, 1):
+        tone += amplitude * np.sin(2 * np.pi * freq * i * t)
     
     # Apply envelope
-    envelope = np.exp(-t * 8)
-    waveform *= envelope
+    attack = int(0.01 * SAMPLE_RATE)
+    decay = int(0.1 * SAMPLE_RATE)
+    sustain_level = 0.7
+    release = int(0.3 * SAMPLE_RATE)
+    
+    envelope = np.ones_like(tone)
+    envelope[:attack] = np.linspace(0, 1, attack)
+    envelope[attack:attack+decay] = np.linspace(1, sustain_level, decay)
+    envelope[-release:] = np.linspace(sustain_level, 0, release)
+    
+    return tone * envelope
+
+def apply_effects(sound, features):
+    """Apply audio effects based on image features."""
+    # Apply low-pass filter based on brightness
+    cutoff = np.interp(features['brightness'], [0, 255], [500, 10000])
+    sos = signal.butter(10, cutoff, btype='low', fs=SAMPLE_RATE, output='sos')
+    sound = signal.sosfilt(sos, sound)
+    
+    # Apply distortion based on contrast
+    distortion_amount = np.interp(features['contrast'], [0, 255], [1, 10])
+    sound = np.tanh(sound * distortion_amount) / distortion_amount
+    
+    return sound
+
+def generate_audio_sample(img_section):
+    """Generate an audio sample based on the image section."""
+    features = analyze_image_section(img_section)
+    
+    # Decide between drum and tonal sound based on value
+    if features['value'] < 128:
+        base_sound = generate_drum_sound(features)
+    else:
+        base_sound = generate_tonal_sound(features)
+    
+    # Apply effects
+    processed_sound = apply_effects(base_sound, features)
     
     # Normalize
-    waveform = waveform / np.max(np.abs(waveform))
+    processed_sound = processed_sound / np.max(np.abs(processed_sound))
     
-    return (waveform * 32767).astype(np.int16)
+    return (processed_sound * 32767).astype(np.int16)
 
 def process_image_to_audio(img):
+    """Process the entire image into audio samples."""
     audio_samples = {}
     for i in range(4):
         for j in range(4):
@@ -50,39 +121,34 @@ def process_image_to_audio(img):
     return audio_samples
 
 def audio_to_base64(audio):
+    """Convert audio array to base64 string."""
     buffer = io.BytesIO()
-    wavfile.write(buffer, SAMPLE_RATE, audio)
+    sf.write(buffer, audio, SAMPLE_RATE, format='wav')
     audio_b64 = base64.b64encode(buffer.getvalue()).decode()
     return audio_b64
 
 # Streamlit app
 def main():
-    st.set_page_config(layout="wide", page_title="MPC-Style Sampler")
+    st.set_page_config(layout="wide", page_title="Image to Audio Sampler")
     
-    st.title("MPC-Style Image to Audio Sampler")
+    st.title("Advanced Image to Audio Sampler")
     
-    # File uploader
     uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
     
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
         st.image(image, caption='Uploaded Image', use_column_width=True)
         
-        # Process image to audio
         audio_samples = process_image_to_audio(image)
-        
-        # Convert audio samples to base64
         audio_data = {k: audio_to_base64(v) for k, v in audio_samples.items()}
         
-        # Pass audio data to JavaScript
         st.markdown(
             f"""
             <script>
-            const audioData = {json.dumps(audio_data)};
+            const audioData = {audio_data};
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const pads = {{}}; // Store AudioBuffers for each pad
+            const pads = {{}};
             
-            // Decode audio data for each pad
             Object.entries(audioData).forEach(([key, base64Data]) => {{
                 const binaryData = atob(base64Data);
                 const arrayBuffer = new ArrayBuffer(binaryData.length);
@@ -102,48 +168,12 @@ def main():
                 source.start();
             }}
             
-            // Transport variables
-            let isRecording = false;
-            let startTime;
-            let recordedNotes = [];
-            
-            function startRecording() {{
-                isRecording = true;
-                startTime = audioContext.currentTime;
-                recordedNotes = [];
-            }}
-            
-            function stopRecording() {{
-                isRecording = false;
-            }}
-            
-            function playRecording() {{
-                recordedNotes.forEach(note => {{
-                    setTimeout(() => playPad(note.pad), note.time * 1000);
-                }});
-            }}
-            
-            function recordNote(pad) {{
-                if (isRecording) {{
-                    recordedNotes.push({{
-                        pad: pad,
-                        time: audioContext.currentTime - startTime
-                    }});
-                }}
-            }}
-            
-            // Expose functions to Streamlit
             window.playPad = playPad;
-            window.startRecording = startRecording;
-            window.stopRecording = stopRecording;
-            window.playRecording = playRecording;
-            window.recordNote = recordNote;
             </script>
             """,
             unsafe_allow_html=True
         )
         
-        # Create MPC-style pad layout
         for i in range(4):
             cols = st.columns(4)
             for j in range(4):
@@ -156,18 +186,9 @@ def main():
                     st.markdown(f"""
                         <div style="width:100%;padding-bottom:100%;position:relative;overflow:hidden;border-radius:10px;margin-bottom:10px;">
                             <img src="data:image/png;base64,{img_str}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">
-                            <button onclick="playPad('{i},{j}'); recordNote('{i},{j}')" style="position:absolute;top:0;left:0;width:100%;height:100%;background:transparent;border:none;cursor:pointer;"></button>
+                            <button onclick="playPad('{i},{j}')" style="position:absolute;top:0;left:0;width:100%;height:100%;background:transparent;border:none;cursor:pointer;"></button>
                         </div>
                     """, unsafe_allow_html=True)
-        
-        # Transport controls
-        st.markdown("""
-            <div style="display:flex;justify-content:center;margin-top:20px;">
-                <button onclick="startRecording()" style="margin:0 10px;padding:10px 20px;">Record</button>
-                <button onclick="stopRecording()" style="margin:0 10px;padding:10px 20px;">Stop</button>
-                <button onclick="playRecording()" style="margin:0 10px;padding:10px 20px;">Play</button>
-            </div>
-        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
