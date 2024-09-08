@@ -1,3 +1,4 @@
 streamlit
 numpy
 pillow
+librosa
