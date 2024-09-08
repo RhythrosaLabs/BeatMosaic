@@ -1,204 +1,173 @@
 import streamlit as st
 import numpy as np
 from PIL import Image, ImageOps
-import wave
 import io
 import base64
-import zipfile
+import json
+from scipy.io import wavfile
+import librosa
+import soundfile as sf
 
 # Constants
 SAMPLE_RATE = 44100
-DURATION = 0.1
-MAX_FREQ = 2000
-MIN_FREQ = 100
+DURATION = 0.5  # Increased duration for better sound
 
 # Helper functions
-def save_wav(audio, rate):
-    buffer = io.BytesIO()
-    with wave.open(buffer, 'w') as wf:
-        wf.setnchannels(1)
-        wf.setsampwidth(2)
-        wf.setframerate(rate)
-        wf.writeframes(audio.tobytes())
-    buffer.seek(0)
-    return buffer
-
-def normalize_waveform(wave):
-    return (wave / np.max(np.abs(wave)) * 32767).astype(np.int16)
-
-# Sound generation functions (unchanged)
-def generate_sine_wave(freq, duration, volume):
+def generate_audio_sample(img_section, duration=DURATION):
+    # Convert image section to grayscale
+    gray = ImageOps.grayscale(img_section)
+    # Normalize pixel values
+    pixels = np.array(gray).flatten() / 255.0
+    
+    # Generate a more complex waveform
     t = np.linspace(0, duration, int(SAMPLE_RATE * duration), endpoint=False)
-    wave = (volume * np.sin(2 * np.pi * freq * t) * 32767).astype(np.int16)
-    return normalize_waveform(wave)
+    waveform = np.zeros_like(t)
+    
+    # Use pixel values to modulate different frequency components
+    for i, px in enumerate(pixels[:10]):  # Use first 10 pixels for modulation
+        freq = 110 * (i + 1)  # Harmonics of 110 Hz
+        waveform += px * np.sin(2 * np.pi * freq * t)
+    
+    # Apply envelope
+    envelope = np.exp(-t * 8)
+    waveform *= envelope
+    
+    # Normalize
+    waveform = waveform / np.max(np.abs(waveform))
+    
+    return (waveform * 32767).astype(np.int16)
 
-def generate_square_wave(freq, duration, volume):
-    t = np.linspace(0, duration, int(SAMPLE_RATE * duration), endpoint=False)
-    signal = np.sin(2 * np.pi * freq * t)
-    wave = (volume * np.sign(signal) * 32767).astype(np.int16)
-    return normalize_waveform(wave)
-
-def generate_sawtooth_wave(freq, duration, volume):
-    t = np.linspace(0, duration, int(SAMPLE_RATE * duration), endpoint=False)
-    signal = 2.0 * (t * freq - np.floor(t * freq + 0.5))
-    wave = (volume * signal * 32767).astype(np.int16)
-    return normalize_waveform(wave)
-
-def generate_triangle_wave(freq, duration, volume):
-    t = np.linspace(0, duration, int(SAMPLE_RATE * duration), endpoint=False)
-    signal = 2.0 * np.abs(2.0 * (t * freq - np.floor(t * freq + 0.5))) - 1.0
-    wave = (volume * signal * 32767).astype(np.int16)
-    return normalize_waveform(wave)
-
-def generate_kick(duration):
-    wave = generate_sine_wave(60, duration, 1.0)
-    envelope = np.linspace(1, 0, int(SAMPLE_RATE * duration))
-    wave = wave * envelope
-    return normalize_waveform(wave)
-
-def generate_snare(duration):
-    tone = generate_sine_wave(200, duration * 0.1, 0.5)
-    noise = np.random.uniform(-1, 1, int(SAMPLE_RATE * duration))
-    noise_start = len(tone)
-    noise = noise[:len(noise) - noise_start]
-    wave = np.concatenate([tone, noise])
-    return normalize_waveform(wave)
-
-def generate_hi_hat(duration):
-    wave = np.random.uniform(-1, 1, int(SAMPLE_RATE * duration))
-    return normalize_waveform(wave)
-
-# Sound effects functions (unchanged)
-def apply_rhythm(sound, pattern=[1, 0, 1, 0, 0]):
-    expanded_pattern = []
-    for p in pattern:
-        expanded_pattern.extend([p] * 4410)  # Repeat each value 4410 times for a slower rhythm
-    sample_pattern = np.tile(expanded_pattern, len(sound) // len(expanded_pattern) + 1)
-    return sound * sample_pattern[:len(sound)]
-
-def apply_reverb(sound, num_reflections=5, decay_factor=0.6):
-    reverbed_sound = np.copy(sound)
-    for i in range(1, num_reflections + 1):
-        delayed_sound = np.roll(sound, i * 2000) * (decay_factor ** i)
-        reverbed_sound = (reverbed_sound.astype(np.float64) + delayed_sound).astype(np.int64)
-    return reverbed_sound
-
-def apply_delay(sound, delay_time=0.03, decay_factor=0.7):
-    delayed_sound = np.roll(sound, int(SAMPLE_RATE * delay_time))
-    return sound + delayed_sound * decay_factor
-
-# Main function to process image and generate audio
 def process_image_to_audio(img):
     audio_samples = {}
-    section_width = img.width // 4
-    section_height = img.height // 4
-    
     for i in range(4):
         for j in range(4):
-            left = i * section_width
-            upper = j * section_height
-            right = left + section_width
-            lower = upper + section_height
+            left = j * (img.width // 4)
+            upper = i * (img.height // 4)
+            right = left + (img.width // 4)
+            lower = upper + (img.height // 4)
             section = img.crop((left, upper, right, lower))
-            
-            section_rgb = np.array(section)
-            r = np.mean(section_rgb[:,:,0])
-            g = np.mean(section_rgb[:,:,1])
-            b = np.mean(section_rgb[:,:,2])
-            
-            grayscale_section = ImageOps.grayscale(section)
-            brightness = np.mean(np.array(grayscale_section)) / 255.0
-            contrast = np.std(np.array(grayscale_section)) / 255.0
-            
-            hsv_section = section.convert('HSV')
-            saturation = np.mean(np.array(hsv_section)[:,:,1]) / 255.0
-            
-            # Determine waveform based on multiple factors
-            if brightness < 0.33 and contrast < 0.5:
-                wave_func = generate_sine_wave
-            elif brightness < 0.66 or saturation > 0.5:
-                wave_func = generate_square_wave
-            elif contrast > 0.7:
-                wave_func = generate_sawtooth_wave
-            else:
-                wave_func = generate_triangle_wave
-
-            # Duration based on RGB
-            duration_modifier = ((r + g + b) / 3) / 255.0
-            wave_duration = DURATION * duration_modifier
-
-            # Assign designated drum sounds and name accordingly
-            center_y = upper + section_height // 2
-            freq = np.interp(center_y, [0, img.height], [MAX_FREQ, MIN_FREQ])
-            
-            if i == 0 and j == 0:
-                wave = generate_kick(wave_duration)
-            elif i == 1 and j == 0:
-                wave = generate_snare(wave_duration)
-            elif i == 2 and j == 0:
-                wave = generate_hi_hat(wave_duration)
-            elif i == 3 and j == 0:
-                wave = generate_triangle_wave(freq, wave_duration, brightness)  # Representing the tom sound
-            else:
-                wave = wave_func(freq, wave_duration, brightness)
-
-            # Rhythmic Variation
-            rhythm_pattern = [int(r > 128), int(g > 128), int(b > 128)]
-            wave = apply_rhythm(wave, rhythm_pattern)
-
-            # Apply Effects
-            if saturation < 0.33:
-                wave = apply_reverb(wave)
-            elif saturation < 0.66:
-                wave = apply_delay(wave)
-            else:
-                wave = apply_reverb(wave)
-                wave = apply_delay(wave)
-            
-            audio_samples[(i, j)] = wave
-
+            audio_samples[f"{i},{j}"] = generate_audio_sample(section)
     return audio_samples
+
+def audio_to_base64(audio):
+    buffer = io.BytesIO()
+    wavfile.write(buffer, SAMPLE_RATE, audio)
+    audio_b64 = base64.b64encode(buffer.getvalue()).decode()
+    return audio_b64
 
 # Streamlit app
 def main():
-    st.title("Image to Audio Sample Pack Grid")
-
+    st.set_page_config(layout="wide", page_title="MPC-Style Sampler")
+    
+    st.title("MPC-Style Image to Audio Sampler")
+    
+    # File uploader
     uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
     
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
         st.image(image, caption='Uploaded Image', use_column_width=True)
-
+        
+        # Process image to audio
         audio_samples = process_image_to_audio(image)
-
-        # Display the 4x4 grid of buttons
+        
+        # Convert audio samples to base64
+        audio_data = {k: audio_to_base64(v) for k, v in audio_samples.items()}
+        
+        # Pass audio data to JavaScript
+        st.markdown(
+            f"""
+            <script>
+            const audioData = {json.dumps(audio_data)};
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const pads = {{}}; // Store AudioBuffers for each pad
+            
+            // Decode audio data for each pad
+            Object.entries(audioData).forEach(([key, base64Data]) => {{
+                const binaryData = atob(base64Data);
+                const arrayBuffer = new ArrayBuffer(binaryData.length);
+                const uint8Array = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < binaryData.length; i++) {{
+                    uint8Array[i] = binaryData.charCodeAt(i);
+                }}
+                audioContext.decodeAudioData(arrayBuffer).then(buffer => {{
+                    pads[key] = buffer;
+                }});
+            }});
+            
+            function playPad(key) {{
+                const source = audioContext.createBufferSource();
+                source.buffer = pads[key];
+                source.connect(audioContext.destination);
+                source.start();
+            }}
+            
+            // Transport variables
+            let isRecording = false;
+            let startTime;
+            let recordedNotes = [];
+            
+            function startRecording() {{
+                isRecording = true;
+                startTime = audioContext.currentTime;
+                recordedNotes = [];
+            }}
+            
+            function stopRecording() {{
+                isRecording = false;
+            }}
+            
+            function playRecording() {{
+                recordedNotes.forEach(note => {{
+                    setTimeout(() => playPad(note.pad), note.time * 1000);
+                }});
+            }}
+            
+            function recordNote(pad) {{
+                if (isRecording) {{
+                    recordedNotes.push({{
+                        pad: pad,
+                        time: audioContext.currentTime - startTime
+                    }});
+                }}
+            }}
+            
+            // Expose functions to Streamlit
+            window.playPad = playPad;
+            window.startRecording = startRecording;
+            window.stopRecording = stopRecording;
+            window.playRecording = playRecording;
+            window.recordNote = recordNote;
+            </script>
+            """,
+            unsafe_allow_html=True
+        )
+        
+        # Create MPC-style pad layout
         for i in range(4):
             cols = st.columns(4)
             for j in range(4):
                 with cols[j]:
-                    if st.button(f"Download {i+1}x{j+1}"):
-                        wav_buffer = save_wav(audio_samples[(i, j)], SAMPLE_RATE)
-                        st.download_button(
-                            label=f"Download {i+1}x{j+1}.wav",
-                            data=wav_buffer,
-                            file_name=f"sample_{i+1}x{j+1}.wav",
-                            mime="audio/wav"
-                        )
-
-        if st.button("Generate and Download Sample Pack"):
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
-                for (i, j), wave in audio_samples.items():
-                    wav_buffer = save_wav(wave, SAMPLE_RATE)
-                    zip_file.writestr(f"sample_{i+1}x{j+1}.wav", wav_buffer.getvalue())
-            
-            zip_buffer.seek(0)
-            st.download_button(
-                label="Download Sample Pack",
-                data=zip_buffer,
-                file_name="sample_pack.zip",
-                mime="application/zip"
-            )
+                    pad_image = image.crop((j*image.width//4, i*image.height//4, (j+1)*image.width//4, (i+1)*image.height//4))
+                    buffered = io.BytesIO()
+                    pad_image.save(buffered, format="PNG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    
+                    st.markdown(f"""
+                        <div style="width:100%;padding-bottom:100%;position:relative;overflow:hidden;border-radius:10px;margin-bottom:10px;">
+                            <img src="data:image/png;base64,{img_str}" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;">
+                            <button onclick="playPad('{i},{j}'); recordNote('{i},{j}')" style="position:absolute;top:0;left:0;width:100%;height:100%;background:transparent;border:none;cursor:pointer;"></button>
+                        </div>
+                    """, unsafe_allow_html=True)
+        
+        # Transport controls
+        st.markdown("""
+            <div style="display:flex;justify-content:center;margin-top:20px;">
+                <button onclick="startRecording()" style="margin:0 10px;padding:10px 20px;">Record</button>
+                <button onclick="stopRecording()" style="margin:0 10px;padding:10px 20px;">Stop</button>
+                <button onclick="playRecording()" style="margin:0 10px;padding:10px 20px;">Play</button>
+            </div>
+        """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
