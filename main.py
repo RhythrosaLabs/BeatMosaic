@@ -1,11 +1,10 @@
 import streamlit as st
 import numpy as np
 from PIL import Image, ImageOps
-import sounddevice as sd
 import wave
-import os
 import io
 import base64
+import zipfile
 
 # Constants
 SAMPLE_RATE = 44100
@@ -13,18 +12,21 @@ DURATION = 0.1
 MAX_FREQ = 2000
 MIN_FREQ = 100
 
-# Helper functions (unchanged from the original code)
-def save_wav(filename, audio, rate):
-    with wave.open(filename, 'w') as wf:
+# Helper functions
+def save_wav(audio, rate):
+    buffer = io.BytesIO()
+    with wave.open(buffer, 'w') as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(rate)
         wf.writeframes(audio.tobytes())
+    buffer.seek(0)
+    return buffer
 
 def normalize_waveform(wave):
     return (wave / np.max(np.abs(wave)) * 32767).astype(np.int16)
 
-# Sound generation functions (unchanged from the original code)
+# Sound generation functions (unchanged)
 def generate_sine_wave(freq, duration, volume):
     t = np.linspace(0, duration, int(SAMPLE_RATE * duration), endpoint=False)
     wave = (volume * np.sin(2 * np.pi * freq * t) * 32767).astype(np.int16)
@@ -66,7 +68,7 @@ def generate_hi_hat(duration):
     wave = np.random.uniform(-1, 1, int(SAMPLE_RATE * duration))
     return normalize_waveform(wave)
 
-# Sound effects functions (unchanged from the original code)
+# Sound effects functions (unchanged)
 def apply_rhythm(sound, pattern=[1, 0, 1, 0, 0]):
     expanded_pattern = []
     for p in pattern:
@@ -174,24 +176,29 @@ def main():
             cols = st.columns(4)
             for j in range(4):
                 with cols[j]:
-                    if st.button(f"Play {i+1}x{j+1}"):
-                        # Play the audio
-                        sd.play(audio_samples[(i, j)].astype(np.int16), SAMPLE_RATE)
-                        sd.wait()
+                    if st.button(f"Download {i+1}x{j+1}"):
+                        wav_buffer = save_wav(audio_samples[(i, j)], SAMPLE_RATE)
+                        st.download_button(
+                            label=f"Download {i+1}x{j+1}.wav",
+                            data=wav_buffer,
+                            file_name=f"sample_{i+1}x{j+1}.wav",
+                            mime="audio/wav"
+                        )
 
         if st.button("Generate and Download Sample Pack"):
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "a", zipfile.ZIP_DEFLATED, False) as zip_file:
                 for (i, j), wave in audio_samples.items():
-                    wav_buffer = io.BytesIO()
-                    save_wav(wav_buffer, wave, SAMPLE_RATE)
-                    wav_buffer.seek(0)
+                    wav_buffer = save_wav(wave, SAMPLE_RATE)
                     zip_file.writestr(f"sample_{i+1}x{j+1}.wav", wav_buffer.getvalue())
             
             zip_buffer.seek(0)
-            b64 = base64.b64encode(zip_buffer.getvalue()).decode()
-            href = f'<a href="data:application/zip;base64,{b64}" download="sample_pack.zip">Download Sample Pack</a>'
-            st.markdown(href, unsafe_allow_html=True)
+            st.download_button(
+                label="Download Sample Pack",
+                data=zip_buffer,
+                file_name="sample_pack.zip",
+                mime="application/zip"
+            )
 
 if __name__ == "__main__":
     main()
