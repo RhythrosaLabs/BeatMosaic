@@ -1,47 +1,74 @@
+<div align="center">
 
-# BeatMosaic
+# 🎵 BeatMosaic
 
-Transform visual patterns into rhythmic soundscapes. BeatMosaic is a unique audio generation tool that converts images into audio sample packs, allowing you to interpret visuals as sound.
+**Turn any image into a playable drum machine and sample pack**
 
-BeatMosaic converts image segments into unique audio samples, providing an interactive 4x4 grid. Users can click on grid sections to play corresponding sounds, apply effects based on image properties, and record/save audio samples. Perfect for audio-visual enthusiasts.
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat&logo=python&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=streamlit&logoColor=white)
+![Librosa](https://img.shields.io/badge/Librosa-Audio-blueviolet?style=flat)
+![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
-
-## Features
-
-- **Image Grid Sampling**: Divide images into a 4x4 grid and generate unique sound samples for each section.
-- **Dynamic Sound Generation**: Create sine, square, sawtooth, and triangle waves based on image attributes.
-- **Effects & Modulation**: Apply rhythmic patterns, reverb, delay, and more to your generated sounds.
-- **Recording**: Record and save your generated soundscapes locally.
-- **GUI**: A user-friendly interface with a visual grid representation of your chosen image.
-
-## Installation
-
-1. Navigate to the project directory.
-2. Download the files.
-3. Install the required libraries:
-```bash
-pip install Pillow numpy sounddevice
-```
-
-## Usage
-
-1. Run the Python script.
-2. Click on "Select Image" to choose an image.
-3. The image will be divided into a 4x4 grid. Click on each section to hear its unique sound.
-4. Experiment with different images to explore a myriad of sonic possibilities!
-
-## Support
-If you found BeatMosaic helpful and would like to support its development, consider buying me a coffee:
-
-[![Support via PayPal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.me/noodlebake)
-
-## Contributing
-
-Feel free to fork this project, make your changes, and submit a pull request. We're open to your insights and suggestions!
-
-## License
-
-This project is licensed under the MIT License.
+</div>
 
 ---
 
+BeatMosaic converts any image into 16 unique audio samples arranged in an interactive drum machine. Each section of a 4×4 grid maps to a segment of the image, generating sine, square, sawtooth, or triangle waves based on the image's pixel data — color, brightness, and texture all influence the sound.
+
+## ✨ Features
+
+- **Image → Sample Pack** — upload any image and instantly get 16 unique audio samples
+- **Interactive 4×4 Grid** — click cells to play samples, like a browser-based MPC
+- **Dynamic Wave Synthesis** — sine, square, sawtooth, and triangle waves derived from pixel data
+- **Effects & Modulation** — reverb, delay, rhythmic patterns applied per-cell
+- **Record & Export** — capture your session and save WAV files locally
+- **Streamlit UI** — clean, browser-based interface with live image preview
+
+## 🚀 Quick Start
+
+```bash
+git clone https://github.com/RhythrosaLabs/BeatMosaic.git
+cd BeatMosaic
+pip install -r requirements.txt
+streamlit run main.py
+```
+
+Then open your browser to `http://localhost:8501`, upload an image, and start jamming.
+
+## 🛠️ Tech Stack
+
+- **Python** — core logic
+- **Streamlit** — web UI
+- **Librosa** — audio analysis and processing
+- **NumPy** — pixel-to-waveform math
+- **Pillow** — image loading and segmentation
+- **SoundFile** — WAV export
+
+## 🎨 How It Works
+
+1. Upload an image → BeatMosaic splits it into a 4×4 grid (16 cells)
+2. Each cell's average color, brightness, and texture are extracted
+3. Those values map to waveform type, frequency, amplitude, and effects
+4. Click any cell to play its generated sample
+5. Record a sequence and export as a WAV file
+
+## 📸 Demo
+
+Each image produces a completely different sonic palette. Try abstract art for ambient textures, or high-contrast photos for punchy drum hits.
+
+## 🤝 Contributing
+
+PRs welcome! Open an issue first for major changes.
+
+## 📄 License
+
+MIT
+
+## 💛 Support
+
+If BeatMosaic sparks some creativity, consider supporting development:
+
+👉 [Donate via PayPal](https://paypal.me/noodlebake) — @noodlebake
+
+---
+<div align="center">Made with ❤️ by <a href="https://github.com/RhythrosaLabs">RhythrosaLabs</a></div>
